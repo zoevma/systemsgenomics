@@ -1,0 +1,246 @@
+---
+title: "Exercise 06"
+author: "Hubert Rehrauer"
+date: "23 10 2023"
+format:
+  html:
+    self-contained: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(pheatmap)
+library(dplyr)
+```
+
+## Comparison of Expression Estimates
+
+The data set consists for 3 Normal samples and 3 Treated samples with 2.5 Mio reads each. The reads are simulated to come from genes on the human chromosome 1.
+
+The expression values from featureCounts were created with:
+We use the library `Rsubread` to generate the counts
+```{r, eval=FALSE}
+library(Rsubread)
+# fill in path of SAM / BAM file for ... (countResult files already provided to us --> not required here)
+countResult1 = featureCounts(..., strandSpecific=0,
+                                 GTF.featureType="exon", GTF.attrType="gene_id", useMetaFeatures=TRUE,
+                                 allowMultiOverlap=TRUE, countMultiMappingReads=FALSE)
+save(countResult1, file="countResult1.RData")
+countResult2 = featureCounts(..., strandSpecific=0,
+                                 GTF.featureType="exon", GTF.attrType="gene_id", useMetaFeatures=TRUE,
+                                 allowMultiOverlap=TRUE, countMultiMappingReads=TRUE, fraction=TRUE)
+save(countResult2, file="countResult2.RData")
+```
+
+The RSEM data were generated with
+```{sh, eval=FALSE}
+# is a software package designed to estimate gene and isoform expression levels from RNA-Seq data
+rsem-calculate-expression .... --calc-pme --calc-ci --strandedness none ...
+```
+For documentation see: http://deweylab.github.io/RSEM/rsem-calculate-expression.html
+
+
+
+## Exercises
+
+1. Depending on the featureCount mode, how many alignments are ignored during counting?  
+2. Compare the counts from featureCounts with the genelevel counts from RSEM. Which genes have different values?
+3. How does the sum of the counts in RSEM compare to the number of the aligned reads?  
+4. Compute pair-wise correlation of the samples based on the isoform counts and gene level counts
+
+```{r}
+# load data (featureCounts)
+countResult1 <- readRDS("countResult1.RDS")
+countResult2 <- readRDS("countResult2.RDS")
+```
+
+```{r}
+# load data (RSEM, gene level)
+RSEM_N1_genes <- read.table("RSEM_counts/N1.genes.results", header=TRUE, sep="\t")
+RSEM_N2_genes <- read.table("RSEM_counts/N2.genes.results", header=TRUE, sep="\t")
+RSEM_N3_genes <- read.table("RSEM_counts/N3.genes.results", header=TRUE, sep="\t")
+
+RSEM_T1_genes <- read.table("RSEM_counts/T1.genes.results", header=TRUE, sep="\t")
+RSEM_T2_genes <- read.table("RSEM_counts/T2.genes.results", header=TRUE, sep="\t")
+RSEM_T3_genes <- read.table("RSEM_counts/T3.genes.results", header=TRUE, sep="\t")
+
+RSEM_genes_list = list(RSEM_N1_genes, RSEM_N2_genes, RSEM_N3_genes, RSEM_T1_genes, RSEM_T2_genes, RSEM_T3_genes)
+```
+
+```{r}
+# load data (RSEM, isoform level)
+RSEM_N1_isoforms <- read.table("RSEM_counts/N1.isoforms.results", header=TRUE, sep="\t")
+RSEM_N2_isoforms <- read.table("RSEM_counts/N2.isoforms.results", header=TRUE, sep="\t")
+RSEM_N3_isoforms <- read.table("RSEM_counts/N3.isoforms.results", header=TRUE, sep="\t")
+
+RSEM_T1_isoforms <- read.table("RSEM_counts/T1.isoforms.results", header=TRUE, sep="\t")
+RSEM_T2_isoforms <- read.table("RSEM_counts/T2.isoforms.results", header=TRUE, sep="\t")
+RSEM_T3_isoforms <- read.table("RSEM_counts/T3.isoforms.results", header=TRUE, sep="\t")
+
+RSEM_isoforms_list = list(RSEM_N1_isoforms, RSEM_N2_isoforms, RSEM_N3_isoforms, RSEM_T1_isoforms, RSEM_T2_isoforms, RSEM_T3_isoforms)
+```
+
+## Question 1
+
+*Depending on the featureCount mode, how many alignments are ignored during counting? *
+
+```{r}
+# count result 1
+print(countResult1$stat)
+summed_alignment_stats = rowSums(countResult1$stat[, 2:ncol(countResult1$stat)])
+paste("Assigned reads: ", summed_alignment_stats[1])
+paste("Unassigned reads due to multimapping: ", summed_alignment_stats[3])
+paste("Unassigned reads due to no features: ", summed_alignment_stats[4])
+```
+419 052 reads are ignored during alignment because they map to multiple genes from CountResults1 and 778 reads were not assigned to any feature.
+
+```{r}
+# count result 2
+print(countResult2$stat)
+summed_alignment_stats = rowSums(countResult2$stat[, 2:ncol(countResult2$stat)])
+paste("Assigned reads: ", summed_alignment_stats[1])
+paste("Unassigned reads due to multimapping: ", summed_alignment_stats[3])
+paste("Unassigned reads due to no features: ", summed_alignment_stats[4])
+```
+No reads are ignored during alignment because they map to multiple genes from CountResults2 but 35 519 reads were not assigned to any feature. Thats because countResults2 allows multimapping reads, the algorithm assigns fractional counts.
+
+## Question 2
+
+*Compare the counts from featureCounts with the genelevel counts from RSEM. Which genes have different values?*
+
+```{r}
+# get raw count matrices
+fc_counts = countResult1$counts
+fc_counts_mm = countResult2$counts
+
+expected_counts_list <- lapply(RSEM_genes_list, function(count_df) {
+  return(count_df$expected_count)
+})
+RSEM_counts <- do.call(cbind, expected_counts_list)
+colnames(RSEM_counts) <- c("N1", "N2", "N3", "T1", "T2", "T3")
+rownames(RSEM_counts) = RSEM_T3_genes$gene_id
+
+# order dataframes in the same way
+RSEM_counts = RSEM_counts[rownames(fc_counts), ]
+
+# percentage of genes with same counts (all samples are included in comparison)
+sum(fc_counts == RSEM_counts) / (dim(RSEM_counts)[1]*dim(RSEM_counts)[2])
+
+# look at distribution of equal and unequal counts
+equal_counts = table(fc_counts[fc_counts == RSEM_counts])
+unequal_counts = table(fc_counts[fc_counts != RSEM_counts])
+print(equal_counts[1:100])
+print(unequal_counts[1:100])
+```
+The percentage of genes with the same count comparing RSEM and feature counts without multimapping is 60%.
+
+Looking at the distribution of the equal and unequal counts derived with the table function shows that genes with 0 counts or really low expression usually have the same counts in both methods. Genes with high expression have expression values in a similar range but not the same values. This can also be seen in the following barplots.
+
+```{r}
+barp_equal_counts = ggplot(data.frame(equal_counts), aes(x = Var1, y = Freq)) + 
+  geom_bar(stat = 'identity') +
+  labs(title = "Distribution of counts in genes with equal counts between RSEM and featureCounts", x = "Counts", y = "Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+print(barp_equal_counts)
+
+barp_unequal_counts = ggplot(data.frame(unequal_counts), aes(x = Var1, y = Freq)) + 
+  geom_bar(stat = 'identity') +
+  labs(title = "Distribution of counts in genes with unequal counts between RSEM and featureCounts", x = "Counts", y = "Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+print(barp_unequal_counts)
+```
+```{r}
+# compare multimapped counts of feature counts and RSEM
+# percentage of genes with same counts (all samples are included in comparison)
+sum(fc_counts_mm == RSEM_counts) / (dim(RSEM_counts)[1]*dim(RSEM_counts)[2])
+
+# look at distribution of equal and unequal counts
+table(fc_counts_mm[fc_counts_mm == RSEM_counts])[1:100]
+table(fc_counts_mm[fc_counts_mm != RSEM_counts])[1:100]
+```
+A similar results is obtained comparing the multimapped counts. Here the percentage of genes with same counts is 56,3 %.
+
+## Question 3
+
+*How does the sum of the counts in RSEM compare to the number of the aligned reads?*
+
+```{r}
+# using total number of aligned reads from featureCounts (same for multimapped and not multimapped)
+tot_reads = colSums(countResult1$stat[, 2:ncol(countResult2$stat)])
+tot_reads
+
+# aligned reads with featureCounts
+aligned_reads_fc = countResult1$stat[1, 2:ncol(countResult2$stat)]
+aligned_reads_fc
+
+# aligned reads with featureCounts (multimapping)
+aligned_reads_fc_mm = countResult2$stat[1, 2:ncol(countResult2$stat)]
+aligned_reads_fc_mm
+
+# sum of counts in RSEM
+aligned_reads_RSEM = colSums(RSEM_counts)
+aligned_reads_RSEM
+```
+Comparing sum of counts in RSEM with total number of reads to align per sample
+```{r}
+tot_reads - aligned_reads_RSEM
+
+(tot_reads - aligned_reads_RSEM)/tot_reads
+```
+Around 5% of the reads are not mapped with RSEM for all of the samples.
+
+## Question 4
+
+*Compute pair-wise correlation of the samples based on the isoform counts and gene level counts*
+```{r}
+# calculate pair-wise correlations of samples based on gene-level counts
+gene_correlation <- cor(RSEM_counts, method="pearson")
+pheatmap(gene_correlation, fontsize = 10)
+```
+
+
+
+```{r}
+# create count matrix for isoform levels
+
+expected_counts_list_isoforms <- lapply(RSEM_isoforms_list, function(count_df) {
+  return(count_df$expected_count)
+})
+RSEM_counts_isoforms <- do.call(cbind, expected_counts_list_isoforms)
+RSEM_counts_isoforms = cbind(RSEM_N1_isoforms$gene_id, RSEM_counts_isoforms)
+colnames(RSEM_counts_isoforms) <- c("gene_id", "N1", "N2", "N3", "T1", "T2", "T3")
+rownames(RSEM_counts_isoforms) = RSEM_N1_isoforms$transcript_id
+head(RSEM_counts_isoforms)
+```
+For both, gene and isoform levels, it is visible that the correlation within the condition is much higher than to samples of the other condition.
+
+```{r}
+# calculate pair-wise correlations of samples based on isoform counts
+RSEM_counts_isoforms = RSEM_counts_isoforms %>% as.data.frame() %>% mutate(across(2:7, ~as.numeric(.)))
+
+isoform_correlation <- cor(RSEM_counts_isoforms[,2:7], method="pearson")
+pheatmap(isoform_correlation, fontsize = 10)
+```
+
+Calculate correlation of summed up isoform counts per gene and gene counts
+```{r}
+RSEM_counts_summed_isoforms <- RSEM_counts_isoforms %>%
+  group_by(gene_id) %>%
+  summarise(across(N1:T3, sum)) %>% 
+  mutate(across(2:7, ~as.numeric(.))) %>%
+  as.data.frame()
+
+rownames(RSEM_counts_summed_isoforms) = RSEM_counts_summed_isoforms$gene_id
+RSEM_counts_summed_isoforms$gene_id = NULL
+
+RSEM_counts_summed_isoforms = RSEM_counts_summed_isoforms[rownames(RSEM_counts),]
+
+isoform_gene_cor = cor(RSEM_counts_summed_isoforms, RSEM_counts, method = "pearson")
+pheatmap(isoform_gene_cor, fontsize = 10)
+```
+Summed up isoform level results have same counts as gene levels. There are only small differences in the first decimal place in a few genes. This gives a correlation of 1 comparing summed isoform and gene counts.
