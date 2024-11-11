@@ -10,6 +10,12 @@ editor_options:
     chunk_output_type: console
 ---
 
+## **Load packages**
+
+```{r}
+library(ggplot2)
+```
+
 ## Overview data
 
 -   L1 stage larvae: SRR1197426 = L1.1, SRR1197325 = L1.2
@@ -27,60 +33,128 @@ editor_options:
 ## Load data
 
 ```{r}
-# Load all datasets
-RSEM_L11_genes <- read.table("RSEM/SRR1197426.genes.results", header = TRUE)
-RSEM_L12_genes <- read.table("RSEM/SRR1197325.genes.results", header = TRUE)
-RSEM_L21_genes <- read.table("RSEM/SRR1197425.genes.results", header = TRUE)
-RSEM_L22_genes <- read.table("RSEM/SRR1197324.genes.results", header = TRUE)
-RSEM_L31_genes <- read.table("RSEM/SRR1197424.genes.results", header = TRUE)
-RSEM_L32_genes <- read.table("RSEM/SRR1197326.genes.results", header = TRUE)
-RSEM_P11_genes <- read.table("RSEM/SRR1197420.genes.results", header = TRUE)
-RSEM_P12_genes <- read.table("RSEM/SRR1197287.genes.results", header = TRUE)
-RSEM_P21_genes <- read.table("RSEM/SRR1197419.genes.results", header = TRUE)
-RSEM_P22_genes <- read.table("RSEM/SRR1197285.genes.results", header = TRUE)
-RSEM_P31_genes <- read.table("RSEM/SRR1197416.genes.results", header = TRUE)
-RSEM_P32_genes <- read.table("RSEM/SRR1197286.genes.results", header = TRUE)
+# Define file names and corresponding column labels
+dataset_labels <- list(L1.1 = "SRR1197426", L1.2 = "SRR1197325", 
+                       L2.1 = "SRR1197425", L2.2 = "SRR1197324", 
+                       L3.1 = "SRR1197424", L3.2 = "SRR1197326", 
+                       P1.1 = "SRR1197420", P1.2 = "SRR1197287", 
+                       P2.1 = "SRR1197419", P2.2 = "SRR1197285", 
+                       P3.1 = "SRR1197416", P3.2 = "SRR1197286")
 
-# Extract gene_id and expected_count for each dataset, rename columns
-RSEM_L11 <- RSEM_L11_genes[, c("gene_id", "expected_count")]
-RSEM_L12 <- RSEM_L12_genes[, c("gene_id", "expected_count")]
-RSEM_L21 <- RSEM_L21_genes[, c("gene_id", "expected_count")]
-RSEM_L22 <- RSEM_L22_genes[, c("gene_id", "expected_count")]
-RSEM_L31 <- RSEM_L31_genes[, c("gene_id", "expected_count")]
-RSEM_L32 <- RSEM_L32_genes[, c("gene_id", "expected_count")]
-RSEM_P11 <- RSEM_P11_genes[, c("gene_id", "expected_count")]
-RSEM_P12 <- RSEM_P12_genes[, c("gene_id", "expected_count")]
-RSEM_P21 <- RSEM_P21_genes[, c("gene_id", "expected_count")]
-RSEM_P22 <- RSEM_P22_genes[, c("gene_id", "expected_count")]
-RSEM_P31 <- RSEM_P31_genes[, c("gene_id", "expected_count")]
-RSEM_P32 <- RSEM_P32_genes[, c("gene_id", "expected_count")]
+# Creates a table with gene_id and the expected_count of all datasets
+load_and_merge_datasets <- function(folder, file_labels) {
+  datasets <- lapply(names(file_labels), function(label) {
+    file_path <- paste0(folder, "/", file_labels[[label]], ".genes.results")
+    # Extract gene_id and expected_count columns for each dataset 
+    data <- read.table(file_path, header = TRUE)[, c("gene_id", "expected_count")]
+    colnames(data)[2] <- label
+    return(data)
+  })
+  # Merge all datasets on gene_id
+  merged_data <- Reduce(function(x, y) merge(x, y, by = "gene_id", all = TRUE), datasets)
+  return(merged_data)
+}
 
-# Rename columns to reflect the sample names
-colnames(RSEM_L11)[2] <- "L1.1"
-colnames(RSEM_L12)[2] <- "L1.2"
-colnames(RSEM_L21)[2] <- "L2.1"
-colnames(RSEM_L22)[2] <- "L2.2"
-colnames(RSEM_L31)[2] <- "L3.1"
-colnames(RSEM_L32)[2] <- "L3.2"
-colnames(RSEM_P11)[2] <- "P1.1"
-colnames(RSEM_P12)[2] <- "P1.2"
-colnames(RSEM_P21)[2] <- "P2.1"
-colnames(RSEM_P22)[2] <- "P2.2"
-colnames(RSEM_P31)[2] <- "P3.1"
-colnames(RSEM_P32)[2] <- "P3.2"
+# Load and merge datasets for both refGene (Masja's version) and ncbiRefSeq (Julia's version) annotaions
+RSEM_counts_refGene <- load_and_merge_datasets("RSEM_refGene", dataset_labels)
+RSEM_counts_ncbiRefSeq <- load_and_merge_datasets("RSEM_NCBI", dataset_labels)
+```
 
-# Merge all datasets on gene_id
-RSEM_counts <- Reduce(function(x, y) merge(x, y, by = "gene_id", all = TRUE),
-                      list(RSEM_L11, RSEM_L12, RSEM_L21, RSEM_L22, 
-                           RSEM_L31, RSEM_L32, RSEM_P11, RSEM_P12, 
-                           RSEM_P21, RSEM_P22, RSEM_P31, RSEM_P32))
+## Differences because of annotations 
 
-# View the result
-head(RSEM_counts)
+**Warning: The code is from ChatGPT, and I haven't checked it in detail since we won't need it in the end. However, I find it interesting that approximately 15% of the genes are differently expressed depending on the annotation, with an average change of 33.87549% (if ChatGPT's code is correct). - Julia :)**
+
+How many genes are only in one annotation?
+
+```{r}
+# Identify genes unique to each dataset
+genes_refGene_only <- setdiff(RSEM_counts_refGene$gene_id, RSEM_counts_ncbiRefSeq$gene_id)
+genes_ncbiRefSeq_only <- setdiff(RSEM_counts_ncbiRefSeq$gene_id, RSEM_counts_refGene$gene_id)
+
+# Calculate absolute counts
+count_refGene_only <- length(genes_refGene_only)
+count_ncbiRefSeq_only <- length(genes_ncbiRefSeq_only)
+
+# Calculate total gene counts for each dataset
+total_genes_refGene <- nrow(RSEM_counts_refGene)
+total_genes_ncbiRefSeq <- nrow(RSEM_counts_ncbiRefSeq)
+
+# Calculate proportions
+proportion_refGene_only <- count_refGene_only / total_genes_refGene
+proportion_ncbiRefSeq_only <- count_ncbiRefSeq_only / total_genes_ncbiRefSeq
+
+# Display results
+cat("Genes only in RSEM_counts_refGene:", count_refGene_only, "(", proportion_refGene_only * 100, "% of total)\n")
+cat("Genes only in RSEM_counts_ncbiRefSeq:", count_ncbiRefSeq_only, "(", proportion_ncbiRefSeq_only * 100, "% of total)\n")
 
 ```
 
-## Mapping
+How differently expressed are the genes depending on annotation?
+
+```{r}
+# Perform a full join on gene_id to ensure all genes are included in the resulting dataframe
+merged_annotations <- merge(RSEM_counts_refGene, RSEM_counts_ncbiRefSeq, by = "gene_id", all = TRUE, suffixes = c("_refGene", "_ncbiRefSeq"))
+
+# Replace NA values with 0 to handle genes present in only one dataset
+merged_annotations[is.na(merged_annotations)] <- 0
+
+# Calculate the difference for each sample column
+# Select only the gene_id column and the difference between corresponding columns
+RSEM_counts_diff <- merged_annotations
+sample_columns <- names(dataset_labels)
+for (sample in sample_columns) {
+  # Calculate difference for each sample and store it in a new column with "_diff" suffix
+  RSEM_counts_diff[[paste0(sample, "_diff")]] <- merged_annotations[[paste0(sample, "_refGene")]] - merged_annotations[[paste0(sample, "_ncbiRefSeq")]]
+}
+
+# Keep only gene_id and the "_diff" columns in the final dataframe
+RSEM_counts_diff <- RSEM_counts_diff[, c("gene_id", paste0(sample_columns, "_diff"))]
+
+# Count genes with exact same expression across all samples
+same_expression_genes <- rowSums(RSEM_counts_diff[, -1] == 0) == length(sample_columns)
+count_same_expression <- sum(same_expression_genes)
+
+# Count genes with different expression in at least one sample
+count_different_expression <- sum(!same_expression_genes)
+
+# Calculate proportions
+total_genes <- nrow(RSEM_counts_diff)
+proportion_same_expression <- count_same_expression / total_genes
+proportion_different_expression <- count_different_expression / total_genes
+
+# Calculate the average proportion difference for genes with different expression
+# Filter out genes with same expression
+different_expression_genes <- RSEM_counts_diff[!same_expression_genes, ]
+
+# Calculate total expression and difference for each gene across samples in both datasets
+total_expression_refGene <- rowSums(merged_annotations[!same_expression_genes, grep("_refGene$", colnames(merged_annotations))])
+total_expression_ncbiRefSeq <- rowSums(merged_annotations[!same_expression_genes, grep("_ncbiRefSeq$", colnames(merged_annotations))])
+
+# Calculate the proportion difference for genes with different expression
+proportion_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq) / (total_expression_refGene + total_expression_ncbiRefSeq)
+
+# Calculate the average proportion difference
+average_proportion_difference <- mean(proportion_differences, na.rm = TRUE)
+
+# Display results
+cat("Number of genes with exact same expression:", count_same_expression, "(", proportion_same_expression * 100, "% of total)\n")
+cat("Number of genes with different expression:", count_different_expression, "(", proportion_different_expression * 100, "% of total)\n")
+cat("Average proportion difference for genes with different expression:", average_proportion_difference * 100, "%\n")
+
+
+# Convert proportion_differences to a dataframe with a meaningful column name
+proportion_differences_df <- data.frame(ProportionDifference = proportion_differences)
+# Calculate absolute differences for genes with different expression
+absolute_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq)
+
+# Add absolute differences to the dataframe
+proportion_differences_df$AbsoluteDifference <- absolute_differences
+
+summary(proportion_differences_df)
+
+```
+
+## Plots
 
 ```{r}
 
