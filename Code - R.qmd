@@ -1,6 +1,6 @@
 ---
 title: "Systems Genomics"
-author: "Julia Frank"
+author: "Julia Frank, Masja Hoogendoorn, Zoe Marolf "
 date: today
 format: 
     html:
