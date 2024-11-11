@@ -1,0 +1,87 @@
+---
+title: "Systems Genomics"
+author: "Julia Frank"
+date: today
+format: 
+    html:
+        self-contained: true
+        toc: true
+editor_options: 
+    chunk_output_type: console
+---
+
+## Overview data
+
+-   L1 stage larvae: SRR1197426 = L1.1, SRR1197325 = L1.2
+
+-   L2 stage larvae: SRR1197425 = L2.1, SRR1197324 = L2.2
+
+-   L3 stage larvae: SRR1197424 = L3.1, SRR1197326 = L3.2
+
+-   pupae, WPP + 2 days: SRR1197420 = P1.1, SRR1197287 = P1.2
+
+-   pupae, WPP + 3 days: SRR1197419 = P2.1, SRR1197285 = P2.2
+
+-   pupae, WPP + 4 days: SRR1197416 = P3.1, SRR1197286 = P3.2
+
+## Load data
+
+```{r}
+# Load all datasets
+RSEM_L11_genes <- read.table("RSEM/SRR1197426.genes.results", header = TRUE)
+RSEM_L12_genes <- read.table("RSEM/SRR1197325.genes.results", header = TRUE)
+RSEM_L21_genes <- read.table("RSEM/SRR1197425.genes.results", header = TRUE)
+RSEM_L22_genes <- read.table("RSEM/SRR1197324.genes.results", header = TRUE)
+RSEM_L31_genes <- read.table("RSEM/SRR1197424.genes.results", header = TRUE)
+RSEM_L32_genes <- read.table("RSEM/SRR1197326.genes.results", header = TRUE)
+RSEM_P11_genes <- read.table("RSEM/SRR1197420.genes.results", header = TRUE)
+RSEM_P12_genes <- read.table("RSEM/SRR1197287.genes.results", header = TRUE)
+RSEM_P21_genes <- read.table("RSEM/SRR1197419.genes.results", header = TRUE)
+RSEM_P22_genes <- read.table("RSEM/SRR1197285.genes.results", header = TRUE)
+RSEM_P31_genes <- read.table("RSEM/SRR1197416.genes.results", header = TRUE)
+RSEM_P32_genes <- read.table("RSEM/SRR1197286.genes.results", header = TRUE)
+
+# Extract gene_id and expected_count for each dataset, rename columns
+RSEM_L11 <- RSEM_L11_genes[, c("gene_id", "expected_count")]
+RSEM_L12 <- RSEM_L12_genes[, c("gene_id", "expected_count")]
+RSEM_L21 <- RSEM_L21_genes[, c("gene_id", "expected_count")]
+RSEM_L22 <- RSEM_L22_genes[, c("gene_id", "expected_count")]
+RSEM_L31 <- RSEM_L31_genes[, c("gene_id", "expected_count")]
+RSEM_L32 <- RSEM_L32_genes[, c("gene_id", "expected_count")]
+RSEM_P11 <- RSEM_P11_genes[, c("gene_id", "expected_count")]
+RSEM_P12 <- RSEM_P12_genes[, c("gene_id", "expected_count")]
+RSEM_P21 <- RSEM_P21_genes[, c("gene_id", "expected_count")]
+RSEM_P22 <- RSEM_P22_genes[, c("gene_id", "expected_count")]
+RSEM_P31 <- RSEM_P31_genes[, c("gene_id", "expected_count")]
+RSEM_P32 <- RSEM_P32_genes[, c("gene_id", "expected_count")]
+
+# Rename columns to reflect the sample names
+colnames(RSEM_L11)[2] <- "L1.1"
+colnames(RSEM_L12)[2] <- "L1.2"
+colnames(RSEM_L21)[2] <- "L2.1"
+colnames(RSEM_L22)[2] <- "L2.2"
+colnames(RSEM_L31)[2] <- "L3.1"
+colnames(RSEM_L32)[2] <- "L3.2"
+colnames(RSEM_P11)[2] <- "P1.1"
+colnames(RSEM_P12)[2] <- "P1.2"
+colnames(RSEM_P21)[2] <- "P2.1"
+colnames(RSEM_P22)[2] <- "P2.2"
+colnames(RSEM_P31)[2] <- "P3.1"
+colnames(RSEM_P32)[2] <- "P3.2"
+
+# Merge all datasets on gene_id
+RSEM_counts <- Reduce(function(x, y) merge(x, y, by = "gene_id", all = TRUE),
+                      list(RSEM_L11, RSEM_L12, RSEM_L21, RSEM_L22, 
+                           RSEM_L31, RSEM_L32, RSEM_P11, RSEM_P12, 
+                           RSEM_P21, RSEM_P22, RSEM_P31, RSEM_P32))
+
+# View the result
+head(RSEM_counts)
+
+```
+
+## Mapping
+
+```{r}
+
+```
