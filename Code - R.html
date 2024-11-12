@@ -3089,8 +3089,12 @@ vertical-align: -.125em;
   <li><a href="#load-packages" id="toc-load-packages" class="nav-link active" data-scroll-target="#load-packages"><strong>Load packages</strong></a></li>
   <li><a href="#overview-data" id="toc-overview-data" class="nav-link" data-scroll-target="#overview-data">Overview data</a></li>
   <li><a href="#load-data" id="toc-load-data" class="nav-link" data-scroll-target="#load-data">Load data</a></li>
+  <li><a href="#annotations" id="toc-annotations" class="nav-link" data-scroll-target="#annotations">Annotations</a>
+  <ul class="collapse">
+  <li><a href="#verify-consistency-of-results-with-identical-annotation" id="toc-verify-consistency-of-results-with-identical-annotation" class="nav-link" data-scroll-target="#verify-consistency-of-results-with-identical-annotation">Verify Consistency of Results with Identical Annotation</a></li>
   <li><a href="#differences-because-of-annotations" id="toc-differences-because-of-annotations" class="nav-link" data-scroll-target="#differences-because-of-annotations">Differences because of annotations</a></li>
-  <li><a href="#mapping" id="toc-mapping" class="nav-link" data-scroll-target="#mapping">Mapping</a></li>
+  <li><a href="#plots" id="toc-plots" class="nav-link" data-scroll-target="#plots">Plots</a></li>
+  </ul></li>
   </ul>
 </nav>
 </div>
@@ -3174,105 +3178,152 @@ vertical-align: -.125em;
 <span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>RSEM_counts_ncbiRefSeq <span class="ot">&lt;-</span> <span class="fu">load_and_merge_datasets</span>(<span class="st">&quot;RSEM_NCBI&quot;</span>, dataset_labels)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
+<section id="annotations" class="level1">
+<h1>Annotations</h1>
+<ul>
+<li><p><strong>refGene (Masja):</strong> only the curated subset of RefSeq (UCSC)</p></li>
+<li><p><strong>ncbiRefSeq (Julia):</strong> complete (curated+predicted) RefSeq database of NCBI</p></li>
+</ul>
+<section id="verify-consistency-of-results-with-identical-annotation" class="level2">
+<h2 class="anchored" data-anchor-id="verify-consistency-of-results-with-identical-annotation">Verify Consistency of Results with Identical Annotation</h2>
+<p>Check if we get the same results with the same annotation:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>control_labels <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">L1.1 =</span> <span class="st">&quot;SRR1197426&quot;</span>, <span class="at">L1.2 =</span> <span class="st">&quot;SRR1197325&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>RSEM_counts_Masja <span class="ot">&lt;-</span> <span class="fu">load_and_merge_datasets</span>(<span class="st">&quot;RSEM_refGene&quot;</span>, control_labels)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>RSEM_counts_Julia <span class="ot">&lt;-</span> <span class="fu">load_and_merge_datasets</span>(<span class="st">&quot;RSEM_refGene_Julia&quot;</span>, control_labels)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Merge both datasets on gene_id, with suffixes to distinguish between the sources</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>merged_control <span class="ot">&lt;-</span> <span class="fu">merge</span>(RSEM_counts_Masja, RSEM_counts_Julia, <span class="at">by =</span> <span class="st">&quot;gene_id&quot;</span>, <span class="at">all =</span> <span class="cn">TRUE</span>, <span class="at">suffixes =</span> <span class="fu">c</span>(<span class="st">&quot;_Masja&quot;</span>, <span class="st">&quot;_Julia&quot;</span>))</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace NA values with -1 to handle genes present in only one dataset</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>merged_control[<span class="fu">is.na</span>(merged_control)] <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate differences for each sample</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>control_diff <span class="ot">&lt;-</span> merged_control</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (sample <span class="cf">in</span> <span class="fu">names</span>(control_labels)) {</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate difference for each sample and store in a new column with &quot;_diff&quot; suffix</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>  control_diff[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_diff&quot;</span>)]] <span class="ot">&lt;-</span> merged_control[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_Masja&quot;</span>)]] <span class="sc">-</span> merged_control[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_Julia&quot;</span>)]]</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep only gene_id and the &quot;_diff&quot; columns in the final difference dataframe</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>control_diff <span class="ot">&lt;-</span> control_diff[, <span class="fu">c</span>(<span class="st">&quot;gene_id&quot;</span>, <span class="fu">paste0</span>(<span class="fu">names</span>(control_labels), <span class="st">&quot;_diff&quot;</span>))]</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify rows where all differences are zero (indicating exactly the same expression across all samples)</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>exactly_same_rows <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(control_diff[, <span class="sc">-</span><span class="dv">1</span>] <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">==</span> <span class="fu">length</span>(control_labels)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Count the number of rows where all differences are zero</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>count_exactly_same_rows <span class="ot">&lt;-</span> <span class="fu">sum</span>(exactly_same_rows)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Filter out rows with exactly the same expression, keeping only those with differences</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>control_diff_filtered <span class="ot">&lt;-</span> control_diff[<span class="sc">!</span>exactly_same_rows, ]</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Display results</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of genes with different expression across at least one sample:&quot;</span>, <span class="fu">nrow</span>(control_diff_filtered), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Number of genes with different expression across at least one sample: 0 </code></pre>
+</div>
+</div>
+<p>We get exactly the same result for L1 stage larvae when using the same annotation, so that shouldn’t be the reason for the differing results with different annotations.</p>
+</section>
 <section id="differences-because-of-annotations" class="level2">
 <h2 class="anchored" data-anchor-id="differences-because-of-annotations">Differences because of annotations</h2>
 <p><strong>Warning: The code is from ChatGPT, and I haven’t checked it in detail since we won’t need it in the end. However, I find it interesting that approximately 15% of the genes are differently expressed depending on the annotation, with an average change of 33.87549% (if ChatGPT’s code is correct). - Julia :)</strong></p>
 <p>How many genes are only in one annotation?</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify genes unique to each dataset</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>genes_refGene_only <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(RSEM_counts_refGene<span class="sc">$</span>gene_id, RSEM_counts_ncbiRefSeq<span class="sc">$</span>gene_id)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>genes_ncbiRefSeq_only <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(RSEM_counts_ncbiRefSeq<span class="sc">$</span>gene_id, RSEM_counts_refGene<span class="sc">$</span>gene_id)</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate absolute counts</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>count_refGene_only <span class="ot">&lt;-</span> <span class="fu">length</span>(genes_refGene_only)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>count_ncbiRefSeq_only <span class="ot">&lt;-</span> <span class="fu">length</span>(genes_ncbiRefSeq_only)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate total gene counts for each dataset</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>total_genes_refGene <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_refGene)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>total_genes_ncbiRefSeq <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_ncbiRefSeq)</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate proportions</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>proportion_refGene_only <span class="ot">&lt;-</span> count_refGene_only <span class="sc">/</span> total_genes_refGene</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>proportion_ncbiRefSeq_only <span class="ot">&lt;-</span> count_ncbiRefSeq_only <span class="sc">/</span> total_genes_ncbiRefSeq</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Display results</span></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Genes only in RSEM_counts_refGene:&quot;</span>, count_refGene_only, <span class="st">&quot;(&quot;</span>, proportion_refGene_only <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify genes unique to each dataset</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>genes_refGene_only <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(RSEM_counts_refGene<span class="sc">$</span>gene_id, RSEM_counts_ncbiRefSeq<span class="sc">$</span>gene_id)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>genes_ncbiRefSeq_only <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(RSEM_counts_ncbiRefSeq<span class="sc">$</span>gene_id, RSEM_counts_refGene<span class="sc">$</span>gene_id)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate absolute counts</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>count_refGene_only <span class="ot">&lt;-</span> <span class="fu">length</span>(genes_refGene_only)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>count_ncbiRefSeq_only <span class="ot">&lt;-</span> <span class="fu">length</span>(genes_ncbiRefSeq_only)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate total gene counts for each dataset</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>total_genes_refGene <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_refGene)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>total_genes_ncbiRefSeq <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_ncbiRefSeq)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate proportions</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>proportion_refGene_only <span class="ot">&lt;-</span> count_refGene_only <span class="sc">/</span> total_genes_refGene</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>proportion_ncbiRefSeq_only <span class="ot">&lt;-</span> count_ncbiRefSeq_only <span class="sc">/</span> total_genes_ncbiRefSeq</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Display results</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Genes only in RSEM_counts_refGene:&quot;</span>, count_refGene_only, <span class="st">&quot;(&quot;</span>, proportion_refGene_only <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Genes only in RSEM_counts_refGene: 181 ( 1.056194 % of total)</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Genes only in RSEM_counts_ncbiRefSeq:&quot;</span>, count_ncbiRefSeq_only, <span class="st">&quot;(&quot;</span>, proportion_ncbiRefSeq_only <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Genes only in RSEM_counts_ncbiRefSeq:&quot;</span>, count_ncbiRefSeq_only, <span class="st">&quot;(&quot;</span>, proportion_ncbiRefSeq_only <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Genes only in RSEM_counts_ncbiRefSeq: 912 ( 5.104097 % of total)</code></pre>
 </div>
 </div>
 <p>How differently expressed are the genes depending on annotation?</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Perform a full join on gene_id to ensure all genes are included in the resulting dataframe</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>merged_annotations <span class="ot">&lt;-</span> <span class="fu">merge</span>(RSEM_counts_refGene, RSEM_counts_ncbiRefSeq, <span class="at">by =</span> <span class="st">&quot;gene_id&quot;</span>, <span class="at">all =</span> <span class="cn">TRUE</span>, <span class="at">suffixes =</span> <span class="fu">c</span>(<span class="st">&quot;_refGene&quot;</span>, <span class="st">&quot;_ncbiRefSeq&quot;</span>))</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace NA values with 0 to handle genes present in only one dataset</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>merged_annotations[<span class="fu">is.na</span>(merged_annotations)] <span class="ot">&lt;-</span> <span class="dv">0</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the difference for each sample column</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Select only the gene_id column and the difference between corresponding columns</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>RSEM_counts_diff <span class="ot">&lt;-</span> merged_annotations</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>sample_columns <span class="ot">&lt;-</span> <span class="fu">names</span>(dataset_labels)</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (sample <span class="cf">in</span> sample_columns) {</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate difference for each sample and store it in a new column with &quot;_diff&quot; suffix</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  RSEM_counts_diff[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_diff&quot;</span>)]] <span class="ot">&lt;-</span> merged_annotations[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_refGene&quot;</span>)]] <span class="sc">-</span> merged_annotations[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_ncbiRefSeq&quot;</span>)]]</span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep only gene_id and the &quot;_diff&quot; columns in the final dataframe</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>RSEM_counts_diff <span class="ot">&lt;-</span> RSEM_counts_diff[, <span class="fu">c</span>(<span class="st">&quot;gene_id&quot;</span>, <span class="fu">paste0</span>(sample_columns, <span class="st">&quot;_diff&quot;</span>))]</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Count genes with exact same expression across all samples</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>same_expression_genes <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(RSEM_counts_diff[, <span class="sc">-</span><span class="dv">1</span>] <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">==</span> <span class="fu">length</span>(sample_columns)</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>count_same_expression <span class="ot">&lt;-</span> <span class="fu">sum</span>(same_expression_genes)</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Count genes with different expression in at least one sample</span></span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>count_different_expression <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="sc">!</span>same_expression_genes)</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate proportions</span></span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>total_genes <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_diff)</span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>proportion_same_expression <span class="ot">&lt;-</span> count_same_expression <span class="sc">/</span> total_genes</span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>proportion_different_expression <span class="ot">&lt;-</span> count_different_expression <span class="sc">/</span> total_genes</span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the average proportion difference for genes with different expression</span></span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Filter out genes with same expression</span></span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>different_expression_genes <span class="ot">&lt;-</span> RSEM_counts_diff[<span class="sc">!</span>same_expression_genes, ]</span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate total expression and difference for each gene across samples in both datasets</span></span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>total_expression_refGene <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(merged_annotations[<span class="sc">!</span>same_expression_genes, <span class="fu">grep</span>(<span class="st">&quot;_refGene$&quot;</span>, <span class="fu">colnames</span>(merged_annotations))])</span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>total_expression_ncbiRefSeq <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(merged_annotations[<span class="sc">!</span>same_expression_genes, <span class="fu">grep</span>(<span class="st">&quot;_ncbiRefSeq$&quot;</span>, <span class="fu">colnames</span>(merged_annotations))])</span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the proportion difference for genes with different expression</span></span>
-<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>proportion_differences <span class="ot">&lt;-</span> <span class="fu">abs</span>(total_expression_refGene <span class="sc">-</span> total_expression_ncbiRefSeq) <span class="sc">/</span> (total_expression_refGene <span class="sc">+</span> total_expression_ncbiRefSeq)</span>
-<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the average proportion difference</span></span>
-<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>average_proportion_difference <span class="ot">&lt;-</span> <span class="fu">mean</span>(proportion_differences, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Display results</span></span>
-<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of genes with exact same expression:&quot;</span>, count_same_expression, <span class="st">&quot;(&quot;</span>, proportion_same_expression <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Perform a full join on gene_id to ensure all genes are included in the resulting dataframe</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>merged_annotations <span class="ot">&lt;-</span> <span class="fu">merge</span>(RSEM_counts_refGene, RSEM_counts_ncbiRefSeq, <span class="at">by =</span> <span class="st">&quot;gene_id&quot;</span>, <span class="at">all =</span> <span class="cn">TRUE</span>, <span class="at">suffixes =</span> <span class="fu">c</span>(<span class="st">&quot;_refGene&quot;</span>, <span class="st">&quot;_ncbiRefSeq&quot;</span>))</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace NA values with 0 to handle genes present in only one dataset</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>merged_annotations[<span class="fu">is.na</span>(merged_annotations)] <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the difference for each sample column</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Select only the gene_id column and the difference between corresponding columns</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>RSEM_counts_diff <span class="ot">&lt;-</span> merged_annotations</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>sample_columns <span class="ot">&lt;-</span> <span class="fu">names</span>(dataset_labels)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (sample <span class="cf">in</span> sample_columns) {</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate difference for each sample and store it in a new column with &quot;_diff&quot; suffix</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  RSEM_counts_diff[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_diff&quot;</span>)]] <span class="ot">&lt;-</span> merged_annotations[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_refGene&quot;</span>)]] <span class="sc">-</span> merged_annotations[[<span class="fu">paste0</span>(sample, <span class="st">&quot;_ncbiRefSeq&quot;</span>)]]</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep only gene_id and the &quot;_diff&quot; columns in the final dataframe</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>RSEM_counts_diff <span class="ot">&lt;-</span> RSEM_counts_diff[, <span class="fu">c</span>(<span class="st">&quot;gene_id&quot;</span>, <span class="fu">paste0</span>(sample_columns, <span class="st">&quot;_diff&quot;</span>))]</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Count genes with exact same expression across all samples</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>same_expression_genes <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(RSEM_counts_diff[, <span class="sc">-</span><span class="dv">1</span>] <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">==</span> <span class="fu">length</span>(sample_columns)</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>count_same_expression <span class="ot">&lt;-</span> <span class="fu">sum</span>(same_expression_genes)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Count genes with different expression in at least one sample</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>count_different_expression <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="sc">!</span>same_expression_genes)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate proportions</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>total_genes <span class="ot">&lt;-</span> <span class="fu">nrow</span>(RSEM_counts_diff)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>proportion_same_expression <span class="ot">&lt;-</span> count_same_expression <span class="sc">/</span> total_genes</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>proportion_different_expression <span class="ot">&lt;-</span> count_different_expression <span class="sc">/</span> total_genes</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the average proportion difference for genes with different expression</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Filter out genes with same expression</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>different_expression_genes <span class="ot">&lt;-</span> RSEM_counts_diff[<span class="sc">!</span>same_expression_genes, ]</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate total expression and difference for each gene across samples in both datasets</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>total_expression_refGene <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(merged_annotations[<span class="sc">!</span>same_expression_genes, <span class="fu">grep</span>(<span class="st">&quot;_refGene$&quot;</span>, <span class="fu">colnames</span>(merged_annotations))])</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>total_expression_ncbiRefSeq <span class="ot">&lt;-</span> <span class="fu">rowSums</span>(merged_annotations[<span class="sc">!</span>same_expression_genes, <span class="fu">grep</span>(<span class="st">&quot;_ncbiRefSeq$&quot;</span>, <span class="fu">colnames</span>(merged_annotations))])</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the proportion difference for genes with different expression</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>proportion_differences <span class="ot">&lt;-</span> <span class="fu">abs</span>(total_expression_refGene <span class="sc">-</span> total_expression_ncbiRefSeq) <span class="sc">/</span> (total_expression_refGene <span class="sc">+</span> total_expression_ncbiRefSeq)</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate the average proportion difference</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>average_proportion_difference <span class="ot">&lt;-</span> <span class="fu">mean</span>(proportion_differences, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Display results</span></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of genes with exact same expression:&quot;</span>, count_same_expression, <span class="st">&quot;(&quot;</span>, proportion_same_expression <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Number of genes with exact same expression: 15498 ( 85.86625 % of total)</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of genes with different expression:&quot;</span>, count_different_expression, <span class="st">&quot;(&quot;</span>, proportion_different_expression <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of genes with different expression:&quot;</span>, count_different_expression, <span class="st">&quot;(&quot;</span>, proportion_different_expression <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;% of total)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Number of genes with different expression: 2551 ( 14.13375 % of total)</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Average proportion difference for genes with different expression:&quot;</span>, average_proportion_difference <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Average proportion difference for genes with different expression:&quot;</span>, average_proportion_difference <span class="sc">*</span> <span class="dv">100</span>, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Average proportion difference for genes with different expression: 33.87549 %</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert proportion_differences to a dataframe with a meaningful column name</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>proportion_differences_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">ProportionDifference =</span> proportion_differences)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate absolute differences for genes with different expression</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>absolute_differences <span class="ot">&lt;-</span> <span class="fu">abs</span>(total_expression_refGene <span class="sc">-</span> total_expression_ncbiRefSeq)</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Add absolute differences to the dataframe</span></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>proportion_differences_df<span class="sc">$</span>AbsoluteDifference <span class="ot">&lt;-</span> absolute_differences</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(proportion_differences_df)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert proportion_differences to a dataframe with a meaningful column name</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>proportion_differences_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">ProportionDifference =</span> proportion_differences)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate absolute differences for genes with different expression</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>absolute_differences <span class="ot">&lt;-</span> <span class="fu">abs</span>(total_expression_refGene <span class="sc">-</span> total_expression_ncbiRefSeq)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Add absolute differences to the dataframe</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>proportion_differences_df<span class="sc">$</span>AbsoluteDifference <span class="ot">&lt;-</span> absolute_differences</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(proportion_differences_df)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code> ProportionDifference AbsoluteDifference
  Min.   :0.0000000    Min.   :       0  
@@ -3284,8 +3335,9 @@ vertical-align: -.125em;
 </div>
 </div>
 </section>
-<section id="mapping" class="level2">
-<h2 class="anchored" data-anchor-id="mapping">Mapping</h2>
+<section id="plots" class="level2">
+<h2 class="anchored" data-anchor-id="plots">Plots</h2>
+</section>
 </section>
 
 </main>

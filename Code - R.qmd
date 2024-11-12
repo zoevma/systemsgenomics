@@ -60,6 +60,12 @@ RSEM_counts_refGene <- load_and_merge_datasets("RSEM_refGene", dataset_labels)
 RSEM_counts_ncbiRefSeq <- load_and_merge_datasets("RSEM_NCBI", dataset_labels)
 ```
 
+# Annotations
+
+-   **refGene (Masja):** only the curated subset of RefSeq (UCSC)
+
+-   **ncbiRefSeq (Julia):** complete (curated+predicted) RefSeq database of NCBI
+
 ## Verify Consistency of Results with Identical Annotation
 
 Check if we get the same results with the same annotation:
