@@ -60,7 +60,47 @@ RSEM_counts_refGene <- load_and_merge_datasets("RSEM_refGene", dataset_labels)
 RSEM_counts_ncbiRefSeq <- load_and_merge_datasets("RSEM_NCBI", dataset_labels)
 ```
 
-## Differences because of annotations 
+## Verify Consistency of Results with Identical Annotation
+
+Check if we get the same results with the same annotation:
+
+```{r}
+control_labels <- list(L1.1 = "SRR1197426", L1.2 = "SRR1197325")
+RSEM_counts_Masja <- load_and_merge_datasets("RSEM_refGene", control_labels)
+RSEM_counts_Julia <- load_and_merge_datasets("RSEM_refGene_Julia", control_labels)
+
+# Merge both datasets on gene_id, with suffixes to distinguish between the sources
+merged_control <- merge(RSEM_counts_Masja, RSEM_counts_Julia, by = "gene_id", all = TRUE, suffixes = c("_Masja", "_Julia"))
+
+# Replace NA values with -1 to handle genes present in only one dataset
+merged_control[is.na(merged_control)] <- -1
+
+# Calculate differences for each sample
+control_diff <- merged_control
+for (sample in names(control_labels)) {
+  # Calculate difference for each sample and store in a new column with "_diff" suffix
+  control_diff[[paste0(sample, "_diff")]] <- merged_control[[paste0(sample, "_Masja")]] - merged_control[[paste0(sample, "_Julia")]]
+}
+
+# Keep only gene_id and the "_diff" columns in the final difference dataframe
+control_diff <- control_diff[, c("gene_id", paste0(names(control_labels), "_diff"))]
+
+# Identify rows where all differences are zero (indicating exactly the same expression across all samples)
+exactly_same_rows <- rowSums(control_diff[, -1] == 0) == length(control_labels)
+
+# Count the number of rows where all differences are zero
+count_exactly_same_rows <- sum(exactly_same_rows)
+
+# Filter out rows with exactly the same expression, keeping only those with differences
+control_diff_filtered <- control_diff[!exactly_same_rows, ]
+
+# Display results
+cat("Number of genes with different expression across at least one sample:", nrow(control_diff_filtered), "\n")
+```
+
+We get exactly the same result for L1 stage larvae when using the same annotation, so that shouldn’t be the reason for the differing results with different annotations.
+
+## Differences because of annotations
 
 **Warning: The code is from ChatGPT, and I haven't checked it in detail since we won't need it in the end. However, I find it interesting that approximately 15% of the genes are differently expressed depending on the annotation, with an average change of 33.87549% (if ChatGPT's code is correct). - Julia :)**
 
