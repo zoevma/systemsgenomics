@@ -229,6 +229,159 @@ summary(proportion_differences_df)
 
 ```
 
+Look at the differences yourself
+
+```{r}
+RSEM_different <- RSEM_counts_diff[!same_expression_genes,]
+RSEM_different
+```
+
+Same, code as above only for the genes that are in both annotations
+
+```{r}
+# Load necessary packages
+# Assuming data is already loaded in variables `RSEM_counts_refGene` and `RSEM_counts_ncbiRefSeq`
+
+# Step 1: Perform an inner join on gene_id to keep only genes present in both annotations
+merged_annotations <- merge(RSEM_counts_refGene, RSEM_counts_ncbiRefSeq, by = "gene_id", suffixes = c("_refGene", "_ncbiRefSeq"))
+
+# Step 2: Calculate expression differences for each sample
+# Define sample column names (assumes `dataset_labels` is defined with sample names as keys)
+sample_columns <- names(dataset_labels)
+
+# Step 3: Initialize a new data frame to store differences
+RSEM_counts_diff <- merged_annotations
+
+# Calculate the difference between `refGene` and `ncbiRefSeq` for each sample
+for (sample in sample_columns) {
+  # Calculate difference and store it in a new column with "_diff" suffix
+  RSEM_counts_diff[[paste0(sample, "_diff")]] <- merged_annotations[[paste0(sample, "_refGene")]] - merged_annotations[[paste0(sample, "_ncbiRefSeq")]]
+}
+
+# Step 4: Keep only `gene_id` and the "_diff" columns in the final dataframe
+RSEM_counts_diff <- RSEM_counts_diff[, c("gene_id", paste0(sample_columns, "_diff"))]
+
+# Step 5: Count genes with exact same expression across all samples (i.e., all differences are zero)
+same_expression_genes <- rowSums(RSEM_counts_diff[, -1] == 0) == length(sample_columns)
+count_same_expression <- sum(same_expression_genes)
+RSEM_different <- RSEM_counts_diff[!same_expression_genes,]
+
+# Count genes with different expression in at least one sample
+count_different_expression <- sum(!same_expression_genes)
+
+# Step 6: Calculate proportions
+total_genes <- nrow(RSEM_counts_diff)
+proportion_same_expression <- count_same_expression / total_genes
+proportion_different_expression <- count_different_expression / total_genes
+
+# Step 7: Calculate the average proportion difference for genes with different expression
+# Filter out genes with same expression
+different_expression_genes <- RSEM_counts_diff[!same_expression_genes, ]
+
+# Calculate total expression and difference for each gene across samples in both datasets
+total_expression_refGene <- rowSums(merged_annotations[!same_expression_genes, grep("_refGene$", colnames(merged_annotations))])
+total_expression_ncbiRefSeq <- rowSums(merged_annotations[!same_expression_genes, grep("_ncbiRefSeq$", colnames(merged_annotations))])
+
+# Calculate the proportion difference for genes with different expression
+proportion_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq) / (total_expression_refGene + total_expression_ncbiRefSeq)
+
+# Calculate the average proportion difference
+average_proportion_difference <- mean(proportion_differences, na.rm = TRUE)
+
+# Display results
+cat("Number of genes with exact same expression:", count_same_expression, "(", proportion_same_expression * 100, "% of total)\n")
+cat("Number of genes with different expression:", count_different_expression, "(", proportion_different_expression * 100, "% of total)\n")
+cat("Average proportion difference for genes with different expression:", average_proportion_difference * 100, "%\n")
+
+# Step 8: Convert proportion_differences to a dataframe with a meaningful column name
+proportion_differences_df <- data.frame(ProportionDifference = proportion_differences)
+
+# Calculate absolute differences for genes with different expression
+absolute_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq)
+
+# Add absolute differences to the dataframe
+proportion_differences_df$AbsoluteDifference <- absolute_differences
+
+# Step 9: Summary statistics
+summary(proportion_differences_df)
+
+```
+
+And now only for genes with a bigger difference
+
+```{r}
+# Load necessary packages
+# Assuming data is already loaded in variables `RSEM_counts_refGene` and `RSEM_counts_ncbiRefSeq`
+
+# Step 1: Perform an inner join on gene_id to keep only genes present in both annotations
+merged_annotations <- merge(RSEM_counts_refGene, RSEM_counts_ncbiRefSeq, by = "gene_id", suffixes = c("_refGene", "_ncbiRefSeq"))
+
+# Step 2: Calculate absolute expression differences for each sample
+# Define sample column names (assumes `dataset_labels` is defined with sample names as keys)
+sample_columns <- names(dataset_labels)
+
+# Step 3: Initialize a new data frame to store absolute differences
+RSEM_counts_diff <- merged_annotations
+
+# Calculate the absolute difference between `refGene` and `ncbiRefSeq` for each sample
+for (sample in sample_columns) {
+  # Calculate absolute difference and store it in a new column with "_diff" suffix
+  RSEM_counts_diff[[paste0(sample, "_diff")]] <- abs(merged_annotations[[paste0(sample, "_refGene")]] - merged_annotations[[paste0(sample, "_ncbiRefSeq")]])
+}
+
+# Step 4: Filter out genes with an absolute difference of less than 1 across all samples
+# Keep only rows where there is at least one column with an absolute difference >= 1
+filtered_genes <- rowSums(RSEM_counts_diff[, paste0(sample_columns, "_diff")] >= 1) > 0
+RSEM_counts_diff <- RSEM_counts_diff[filtered_genes, ]
+
+# Step 5: Keep only `gene_id` and the "_diff" columns in the final dataframe
+RSEM_counts_diff <- RSEM_counts_diff[, c("gene_id", paste0(sample_columns, "_diff"))]
+
+# Step 6: Count genes with exact same expression across all samples (i.e., all differences are zero)
+same_expression_genes <- rowSums(RSEM_counts_diff[, -1] == 0) == length(sample_columns)
+count_same_expression <- sum(same_expression_genes)
+RSEM_different <- RSEM_counts_diff[!same_expression_genes,]
+
+# Count genes with different expression in at least one sample
+count_different_expression <- sum(!same_expression_genes)
+
+# Step 7: Calculate proportions
+total_genes <- nrow(RSEM_counts_diff)
+proportion_same_expression <- count_same_expression / total_genes
+proportion_different_expression <- count_different_expression / total_genes
+
+# Step 8: Calculate the average proportion difference for genes with different expression
+# Filter out genes with same expression
+different_expression_genes <- RSEM_counts_diff[!same_expression_genes, ]
+
+# Calculate total expression and difference for each gene across samples in both datasets
+total_expression_refGene <- rowSums(merged_annotations[filtered_genes, grep("_refGene$", colnames(merged_annotations))])
+total_expression_ncbiRefSeq <- rowSums(merged_annotations[filtered_genes, grep("_ncbiRefSeq$", colnames(merged_annotations))])
+
+# Calculate the proportion difference for genes with different expression
+proportion_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq) / (total_expression_refGene + total_expression_ncbiRefSeq)
+
+# Calculate the average proportion difference
+average_proportion_difference <- mean(proportion_differences, na.rm = TRUE)
+
+# Display results
+cat("Number of genes with different expression:", count_different_expression, "(", proportion_different_expression * 100, "% of total)\n")
+cat("Average proportion difference for genes with different expression:", average_proportion_difference * 100, "%\n")
+
+# Step 9: Convert proportion_differences to a dataframe with a meaningful column name
+proportion_differences_df <- data.frame(ProportionDifference = proportion_differences)
+
+# Calculate absolute differences for genes with different expression
+absolute_differences <- abs(total_expression_refGene - total_expression_ncbiRefSeq)
+
+# Add absolute differences to the dataframe
+proportion_differences_df$AbsoluteDifference <- absolute_differences
+
+# Step 10: Summary statistics
+summary(proportion_differences_df)
+
+```
+
 ## Plots
 
 ```{r}
