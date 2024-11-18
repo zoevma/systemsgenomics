@@ -32,7 +32,9 @@ library(dplyr)
 
 -   pupae, WPP + 4 days: SRR1197416 = P3.1, SRR1197286 = P3.2
 
-## Load data
+## 1. Load data
+
+### 1.1 Load the .genes.results into dataframes
 
 ```{r}
 # Define file names and corresponding column labels
@@ -43,12 +45,12 @@ dataset_labels <- list(L1.1 = "SRR1197426", L1.2 = "SRR1197325",
                        P2.1 = "SRR1197419", P2.2 = "SRR1197285", 
                        P3.1 = "SRR1197416", P3.2 = "SRR1197286")
 
-# Creates a table with gene_id and the expected_count of all .genes 
-load_and_merge_gene_results <- function(folder, file_labels) {
+# Function to load and merge gene results
+load_and_merge_gene_results <- function(folder, file_labels, column_name = "expected_count") {
   datasets <- lapply(names(file_labels), function(label) {
     file_path <- paste0(folder, "/", file_labels[[label]], ".genes.results")
-    # Extract gene_id and expected_count columns for each dataset 
-    data <- read.table(file_path, header = TRUE)[, c("gene_id", "expected_count")]
+    # Extract gene_id and specified column for each dataset
+    data <- read.table(file_path, header = TRUE)[, c("gene_id", column_name)]
     colnames(data)[2] <- label
     return(data)
   })
@@ -57,10 +59,16 @@ load_and_merge_gene_results <- function(folder, file_labels) {
   return(merged_data)
 }
 
-# Load and merge datasets for both refGene (Masja's version) and ncbiRefSeq (Julia's version) annotaions
-RSEM_counts_refGene <- load_and_merge_gene_results("RSEM_refGene", dataset_labels)
-RSEM_counts_ncbiRefSeq <- load_and_merge_gene_results("RSEM_NCBI", dataset_labels)
+# Load and merge datasets for refGene (Masja's version) and ncbiRefSeq (Julia's version) annotations
+RSEM_counts_refGene <- load_and_merge_gene_results("RSEM_refGene", dataset_labels, "expected_count")
+RSEM_counts_ncbiRefSeq <- load_and_merge_gene_results("RSEM_NCBI", dataset_labels, "expected_count")
+
+# Load and merge datasets for TPM values
+RSEM_TPM_refGene <- load_and_merge_gene_results("RSEM_refGene", dataset_labels, "TPM")
+RSEM_TPM_ncbiRefSeq <- load_and_merge_gene_results("RSEM_NCBI", dataset_labels, "TPM")
 ```
+
+### 1.2 Load the .isoforms.results into dataframes
 
 ```{r}
 # Creates a table with transcript_id and expected_count of all isoforms
@@ -89,20 +97,79 @@ RSEM_isoforms_refGene <- load_and_merge_isoforms("RSEM_refGene", dataset_labels)
 RSEM_isoforms_ncbiRefSeq <- load_and_merge_isoforms("RSEM_NCBI", dataset_labels)
 ```
 
-# Annotations
+### 1.3 Loading the metadata from SR
+
+```{r}
+
+
+```
+
+### 1.4 Load additional information about genes
+
+```{r}
+
+# Load biomaRt library
+library(biomaRt)
+
+# Specify Ensembl mart and dataset for Drosophila melanogaster
+ensembl <- useEnsembl(biomart = "ensembl",
+                      dataset = "dmelanogaster_gene_ensembl")
+
+# List all available attributes
+list_attributes <- listAttributes(ensembl)
+
+# View the first few rows of attributes
+list_filters <- listFilters(ensembl)
+View(list_filters)
+
+head(RSEM_TPM_ncbiRefSeq$gene_id)
+
+# Retrieve metadata for your dataset using with_entrezgene
+meta_genes <- getBM(attributes = c("ensembl_gene_id",
+                                   "external_gene_name",
+                                   "description",
+                                   "chromosome_name",
+                                   "start_position",
+                                   "end_position",
+                                   "strand"),
+                    filters = "external_synonym",
+                    values = RSEM_TPM_ncbiRefSeq$gene_id,
+                    mart = ensembl)
+
+# Merge metadata with the RSEM_TPM_ncbiRefSeq dataframe
+RSEM_TPM_ncbiRefSeq_annotated <- merge(
+  RSEM_TPM_ncbiRefSeq,
+  meta_genes,
+  by.x = "gene_id",  # Match on gene_id from your dataframe
+  by.y = "external_gene_name",  # Match on external_gene_name from Ensembl
+  all.x = TRUE  # Keep all rows from the original dataframe
+)
+
+# Reorder columns to place metadata after gene_id
+RSEM_TPM_ncbiRefSeq_annotated <- RSEM_TPM_ncbiRefSeq_annotated[, c(
+  "gene_id",  # Keep gene_id first
+  "ensembl_gene_id", "description", "chromosome_name", "start_position", "end_position", "strand",  # Metadata columns
+  setdiff(colnames(RSEM_TPM_ncbiRefSeq_annotated), c("gene_id", "ensembl_gene_id", "description", "chromosome_name", "start_position", "end_position", "strand"))  # Remaining columns
+)]
+
+# View the annotated dataframe
+View(RSEM_TPM_ncbiRefSeq_annotated)
+```
+
+## 2. Annotations
 
 -   **refGene (Masja):** only the curated subset of RefSeq (UCSC)
 
 -   **ncbiRefSeq (Julia):** complete (curated+predicted) RefSeq database of NCBI
 
-## Verify Consistency of Results with Identical Annotation
+### 2.1 Verify Consistency of Results with Identical Annotation
 
 Check if we get the same results with the same annotation:
 
 ```{r}
 control_labels <- list(L1.1 = "SRR1197426", L1.2 = "SRR1197325")
-RSEM_counts_Masja <- load_and_merge_datasets("RSEM_refGene", control_labels)
-RSEM_counts_Julia <- load_and_merge_datasets("RSEM_refGene_Julia", control_labels)
+RSEM_counts_Masja <- load_and_merge_gene_results("RSEM_refGene", control_labels)
+RSEM_counts_Julia <- load_and_merge_gene_results("RSEM_refGene_Julia", control_labels)
 
 # Merge both datasets on gene_id, with suffixes to distinguish between the sources
 merged_control <- merge(RSEM_counts_Masja, RSEM_counts_Julia, by = "gene_id", all = TRUE, suffixes = c("_Masja", "_Julia"))
@@ -135,7 +202,7 @@ cat("Number of genes with different expression across at least one sample:", nro
 
 We get exactly the same result for L1 stage larvae when using the same annotation, so that shouldn’t be the reason for the differing results with different annotations.
 
-## Differences because of annotations
+### 2.2 Differences because of annotations
 
 **Warning: The code is from ChatGPT, and I haven't checked it in detail since we won't need it in the end. However, I find it interesting that approximately 15% of the genes are differently expressed depending on the annotation, with an average change of 33.87549% (if ChatGPT's code is correct). - Julia :)**
 
@@ -382,34 +449,211 @@ summary(proportion_differences_df)
 
 ```
 
-## Plots
+## 3 Analysis following the tutorial
+
+### 3.1 Comparison of transcriptomic profiles across samples
+
+#### Tutorial page 54
+
+*Conclusion:*
+
+The histogram on the left shows that most genes have very low average expression, with a few outliers exhibiting extremely high expression levels, leading to a highly skewed distribution. The log-transformed histogram on the right reveals a more normalized distribution, indicating that log transformation effectively reduces the impact of extreme values and highlights the variation among low and moderately expressed genes. **This transformation is essential for downstream analyses to prevent dominance by highly expressed genes.**
+
+```{r}
+
+# Calculate the average expression across all samples
+expr <- RSEM_TPM_ncbiRefSeq
+rownames(expr) <- expr$gene_id  # Set 'gene_id' as row names
+expr <- expr[, -1]  # Remove the 'gene_id' column
+avg_expr <- rowMeans(expr, na.rm = TRUE)
+summary(avg_expr)
+
+# Plot histograms
+layout(matrix(1:2, nrow = 1))  # Arrange plots side by side
+# First histogram: Adjust x-axis range to focus on lower expression values
+hist(avg_expr, col = "lightblue")
+
+# Second histogram: Log-transformed, as before
+hist(log10(avg_expr + 1), 
+     breaks = 50,  # Increase bins for better resolution
+     main = "Histogram of Log10(Average Expression + 1)",
+     xlab = "Log10(Average Expression + 1)",
+     col = "lightblue",
+     border = "black")
+
+```
+
+#### Tutorial page 55
+
+*Conclusion:*
+
+This histogram shows the distribution of average expression values on log-log scales, revealing a gradual decrease in frequency as expression values increase. The log transformation effectively highlights the range of expression levels, from low to high, while emphasizing the presence of many lowly expressed genes and fewer highly expressed ones. This indicates that most genes exhibit low to moderate expression, with a minority of genes showing high expression levels.
+
+```{r}
+# Load ggplot2 library
+library(ggplot2)
+
+# Create a dataframe from avg_expr
+avg_expr_df <- data.frame(avg_expr)
+
+# Generate the histogram
+ggplot(avg_expr_df, aes(x = avg_expr)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "black") +  # Adjust color for better readability
+  scale_x_continuous(
+    breaks = c(0, 1, 10, 100, 1000, 10000, 20000),  # Custom breaks on the x-axis
+    trans = "log1p",                                # Log1p transformation for x-axis
+    expand = c(0, 0)                                # No padding on x-axis
+  ) +
+  scale_y_continuous(
+    breaks = c(0, 1, 10, 100, 1000),               # Custom breaks on the y-axis
+    trans = "log1p",                                # Log1p transformation for y-axis
+    expand = c(0, 0)                                # No padding on y-axis
+  ) +
+  theme_minimal() +
+  labs(
+    title = "Histogram of Average Expression (Log-Scaled Axes)",
+    x = "Average Expression (log1p)",
+    y = "Frequency (log1p)"
+  )
+```
+
+#### Tutorial page 56
+
+*Conclusion:*
+
+-   **Most Genes Are Detected in All Samples** (Right Peak):\
+    A significant proportion of genes are expressed in all 12 samples. This pattern is likely dominated by housekeeping or consistently expressed genes, which tend to be active across all conditions.
+
+-   **Sparse Detection in Few Samples** (Left Tail):\
+    A smaller subset of genes is expressed in only a few samples, possibly indicating low expression levels or condition-specific activity.
+
+```{r}
+# Calculate the number of samples where expression is greater than 0
+num_det <- rowSums(expr[, -1] > 0)
+
+# Create a histogram to visualize the distribution
+hist(
+  num_det,
+  col = "steelblue",  # Add color for better readability
+  border = "black",
+  main = "Number of Samples with Detected Expression",
+  xlab = "Number of Samples",
+  ylab = "Frequency"
+)
+```
+
+#### Tutorial page 57
+
+*Conclusion:*
+
+We add a column 'expressed' to the dataframe. If we filter genes out with low expression (only select expression == TRUE), the dataset reduces to **15,565 retained genes**, while **2,303 genes are removed**, as shown below:
+
+```{r}
+# Calculate expressed genes based on your criteria
+expressed_genes <- rowMeans(expr[, -1] > 0) >= 0.5 | rowMeans(expr) >= 1
+
+# Count the number of retained and removed genes
+num_retained <- sum(expressed_genes)  # Genes retained
+num_removed <- sum(!expressed_genes) # Genes removed
+
+# Output the counts
+cat("Number of genes retained:", num_retained, "\n")
+cat("Number of genes removed:", num_removed, "\n")
+
+# Add the expressed column to the annotated dataframe if needed
+RSEM_TPM_ncbiRefSeq_annotated$expressed <- expressed_genes
+
+# View the updated metadata with the expressed column
+head(RSEM_TPM_ncbiRefSeq_annotated) 
+
+```
+
+#### Tutorial page 58
+
+*Conclusion:*
+
+The dendrograms reveal distinct clustering of larval and pupal stages, reflecting stage-specific gene expression patterns during Drosophila development. **Sub-clusters within each stage (L and P) indicate gradual changes in gene expression corresponding to different time points or developmental phases.** This suggests tightly regulated transcriptional programs driving the transition from larval growth to pupal metamorphosis.
+
+```{r}
+corr_pearson <- cor(log1p(expr[RSEM_TPM_ncbiRefSeq_annotated$expressed,]))
+corr_spearman <- cor(expr[RSEM_TPM_ncbiRefSeq_annotated$expressed,], method = "spearman")
+
+hcl_pearson <- hclust(as.dist(1 - corr_pearson))
+hcl_spearman <- hclust(as.dist(1 - corr_spearman))
+
+layout(matrix(1:2,nrow=1))
+plot(hcl_pearson)
+plot(hcl_spearman)
+```
+
+#### Tutorial page 59
+
+*Conclusion:* The plot clearly distinguishes between the larvae (L) and pupae (P) stages using color and differentiates individuals using shapes. The data shows distinct clustering of the stages, with some overlap between individuals within the same stage, suggesting some variation within each group. Further investigation may be needed to explore the relationships between individual samples and their positioning along the principal components.
+
+```{r}
+dim(expr)  # Should return (samples x genes) if not using transpose
+pca <- prcomp(log1p(t(expr[RSEM_TPM_ncbiRefSeq_annotated$expressed,])), center = TRUE, scale. = TRUE)
+eigs <- pca$sdev^2
+plot(1:length(eigs), eigs)
+```
+
+```{r}
+# Assuming your data is stored in pca$x and you want to add Stage and Individual
+library(dplyr)
+
+# Create a data frame for plotting
+pca_data <- data.frame(pca$x)
+
+# Extract Stage and Individual from the row names
+pca_data$Stage <- gsub("\\d", "", rownames(pca_data))  # Extract "L", "P", etc.
+pca_data$Individual <- gsub("[A-Za-z]", "", rownames(pca_data))  # Extract "1", "2", etc.
+
+library(ggplot2)
+
+ggplot(pca_data) +
+  geom_point(aes(x = PC1, y = PC2, color = Stage, shape = Individual), size = 5) +
+  labs(color = "Stage", shape = "Individual") +
+  theme_minimal()
+
+```
+
+## 4 Own Analysis
+
+### 4.1 Heatmap expression levels
+
+Made by: Masja
+
+The data is adjusted with **log transformation** and **z-score normalization.**
 
 ```{r}
 # Article about the normalization step
 #https://bioinfo.cd-genomics.com/resource-data-normalization-for-rna-seq-and-heatmaps.html#:~:text=Heatmap%20Data%20Normalization,-Heatmaps%20provide%20a&text=The%20resulting%20Z%2Dscore%20scaling,(usually%20shown%20in%20blue).
 
-# Log transform the data to reduce the range of expression levels
-RSEM_counts_log <- log2(RSEM_counts_ncbiRefSeq + 1)  # Add 1 to avoid log(0)
+head(RSEM_counts_ncbiRefSeq)
+# Log transform the numeric columns (excluding 'gene_id')
+RSEM_counts_log <- log2(RSEM_counts_ncbiRefSeq[, -1] + 1)  # Apply log2 transformation
 
-# Calculate variance for each gene and filter based on a threshold
-# Adjust threshold based on the level of filtering you want
-gene_variances <- apply(RSEM_counts_log, 1, var)
-# Further filter genes with higher variance if needed (adjust threshold as appropriate)
-high_variance_genes <- RSEM_counts_log[gene_variances > 2, ]  # Increase threshold for more filtering
 
-# Create the clustered heatmap with enhancements
+# Calculate variance for each gene and filter the top 10% most variable genes
+gene_variances <- apply(RSEM_counts_log, 1, var)  # Calculate variance row-wise
+top_variable_genes <- RSEM_counts_log[order(-gene_variances)[1:floor(0.1 * nrow(RSEM_counts_log))], ]
+
+# Create an enhanced clustered heatmap
 library(pheatmap)
+
 pheatmap(
-  as.matrix(high_variance_genes), 
-  color = colorRampPalette(c("navy", "white", "firebrick3"))(100),  # Use more color gradients
-  cluster_rows = FALSE, 
-  cluster_cols = TRUE, 
-  scale = "row",  # z-score normalization by row (IMPORTANT!)
-  show_rownames = FALSE,  # Hide row names if too cluttered
+  as.matrix(top_variable_genes), 
+  color = colorRampPalette(c("navy", "white", "firebrick3"))(100), 
+  cluster_rows = TRUE,  # Cluster rows for better grouping
+  cluster_cols = TRUE,  # Cluster columns (retain this)
+  scale = "row", # z-score normalization by row (IMPORTANT!)
+  show_rownames = FALSE, 
   show_colnames = TRUE,
-  fontsize_row = 6,
+  fontsize_row = max(6, 0.2 * nrow(top_variable_genes)),  # Adjust font size based on data
   fontsize_col = 8,
-  main = "Clustered Heatmap of Transcript Expression Levels (Log-Transformed, Filtered & Scaled)"
+  legend = FALSE,  # Optionally hide legend if unnecessary
+  border_color = NA,  # Remove gridlines for cleaner look
+  main = "Transcript Expression Heatmap"
 )
 
 ```
